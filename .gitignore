@@ -1,0 +1,4 @@
+targets
+tmp
+*.jar
+artifacts
