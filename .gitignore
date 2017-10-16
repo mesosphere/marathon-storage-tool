@@ -2,3 +2,4 @@ targets
 tmp
 *.jar
 artifacts
+*.dylib
