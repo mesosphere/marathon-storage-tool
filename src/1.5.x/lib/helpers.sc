@@ -11,7 +11,12 @@ object InternalHelpers {
     * does not take additional program arguments.
     */
   def argsFromEnv: List[String] = {
-    "(?<!\\\\)( +)".r.split(sys.env.getOrElse("MARATHON_ARGS", "").trim).toList.filterNot(_ == "")
+    "(?<!\\\\)( +)".r.split(sys.env.getOrElse("MARATHON_ARGS", "").trim)
+      .filterNot(_ == "")
+      .map { arg =>
+        arg.replaceAll("\\\\(.)", "$1")
+      }
+      .toList
   }
 }
 
