@@ -2,9 +2,29 @@
 
 # General
 
-artifacts/marathon-%.tgz:
+artifacts/marathon-1.3.%.tgz:
 	mkdir -p artifacts/
-	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v$*/marathon-$*.tgz
+	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v1.3.$*/marathon-1.3.$*.tgz
+	mv $@.tmp $@
+
+artifacts/marathon-1.4.%.tgz:
+	mkdir -p artifacts/
+	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v1.4.$*/marathon-1.4.$*.tgz
+	mv $@.tmp $@
+
+artifacts/marathon-1.5.0.tgz:
+	mkdir -p artifacts/
+	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v1.5.0/marathon-1.5.0.tgz
+	mv $@.tmp $@
+
+artifacts/marathon-1.5.1.tgz:
+	mkdir -p artifacts/
+	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v1.5.1/marathon-1.5.1.tgz
+	mv $@.tmp $@
+
+artifacts/marathon-1.5.%.tgz:
+	mkdir -p artifacts/
+	curl -f -o $@.tmp https://downloads.mesosphere.io/marathon/releases/1.5.$*/marathon-1.5.$*.tgz
 	mv $@.tmp $@
 
 targets/%/lib:
@@ -25,7 +45,7 @@ targets/%/docker-pushed: targets/%/docker-built
 targets/1.5.%/marathon: artifacts/marathon-1.5.%.tgz
 	mkdir -p targets/1.5.$*
 	mkdir -p tmp/marathon-1.5.$*/; cd tmp/marathon-1.5.$*; tar xzf ../../artifacts/marathon-1.5.$*.tgz
-	mv tmp/marathon-1.5.$*/marathon-1.5.$*-* $@
+	mv tmp/marathon-1.5.$*/marathon-1.5.* $@
 	rm -rf tmp/marathon-1.5.$*
 	touch $@
 
