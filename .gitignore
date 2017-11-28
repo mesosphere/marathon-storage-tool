@@ -1,5 +1,6 @@
 targets
 tmp
 *.jar
+src/1.5.x/marathon
 artifacts
 *.dylib

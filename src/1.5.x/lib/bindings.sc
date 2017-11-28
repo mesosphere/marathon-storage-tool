@@ -38,13 +38,7 @@ case class StorageToolModule(
   migration: Migration
 )
 
-object MarathonStorage {
-  def argsFromEnv: List[String] = {
-    "(?<!\\\\)( +)".r.split(sys.env.getOrElse("MARATHON_ARGS", "").trim).toList.filterNot(_ == "")
-  }
-}
-
-class MarathonStorage(args: List[String] = MarathonStorage.argsFromEnv) {
+class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) {
   import helpers.Helpers._
   implicit val actorSystem = ActorSystem()
   implicit val actorMaterializer = ActorMaterializer()

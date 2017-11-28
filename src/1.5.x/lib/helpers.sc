@@ -11,7 +11,17 @@ object InternalHelpers {
     * does not take additional program arguments.
     */
   def argsFromEnv: List[String] = {
-    "(?<!\\\\)( +)".r.split(sys.env.getOrElse("MARATHON_ARGS", "").trim).toList.filterNot(_ == "")
+    "(?<!\\\\)( +)".r.split(sys.env.getOrElse("MARATHON_ARGS", "").trim)
+      .filterNot(_ == "")
+      .map { arg =>
+        /* This unescapes an argument by simply removing the leading backslashes
+         * 'zk://zk-1.zk\,zk-2.zk:8181/marathon'
+         *   becomes
+         * 'zk://zk-1.zk,zk-2.zk:8181/marathon'
+         */
+        arg.replaceAll("\\\\(.)", "$1")
+      }
+      .toList
   }
 }
 
