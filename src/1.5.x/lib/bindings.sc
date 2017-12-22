@@ -74,9 +74,18 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   }
   implicit lazy val client = storage.client
   implicit lazy val underlyingModule = StorageModule(storage, "mesos-bridge-name")
+  lazy val store = {
+    val s = storage.store
+    // We need to call this method before using the storage module if it is defined
+    s.getClass.getMethods.find(_.getName == "markOpen").foreach { m =>
+      m.invoke(s)
+    }
+    s
+  }
+
   implicit lazy val module = StorageToolModule(
-    appRepository = AppRepository.zkRepository(storage.store),
-    podRepository = PodRepository.zkRepository(storage.store),
+    appRepository = AppRepository.zkRepository(store),
+    podRepository = PodRepository.zkRepository(store),
     instanceRepository = underlyingModule.instanceRepository,
     deploymentRepository = underlyingModule.deploymentRepository,
     taskFailureRepository = underlyingModule.taskFailureRepository,
@@ -87,7 +96,7 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
 
   def assertStoreCompat: Unit = {
     def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}"
-    val storageVersion = await(storage.store.storageVersion()).getOrElse {
+    val storageVersion = await(store.storageVersion()).getOrElse {
       error(s"Could not determine current storage version!")
     }
     if ((storageVersion.getMajor == StorageVersions.current.getMajor) &&
