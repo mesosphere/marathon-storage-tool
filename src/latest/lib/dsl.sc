@@ -1,16 +1,20 @@
 import $file.helpers
 import $file.bindings
-
-import akka.stream.Materializer
-import akka.util.Timeout
-import bindings._
-import mesosphere.marathon.PrePostDriverCallback
-import mesosphere.marathon.core.task.Task
-import mesosphere.marathon.state.{PathId, Timestamp}
 import scala.annotation.tailrec
+
+import akka.util.Timeout
+import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.state.PathId
+import akka.stream.Materializer
+import mesosphere.marathon.storage.repository.AppRepository
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{Future, Await}
+
+import mesosphere.marathon.storage.migration.Migration
+import mesosphere.marathon.storage.repository._
+import mesosphere.marathon.PrePostDriverCallback
+import bindings._
 
 class DSL(implicit val mat: Materializer, timeout: Timeout) {
   import helpers.Helpers._
@@ -18,8 +22,11 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
   case class AppId(path: PathId) {
     override def toString(): String = s"AppId(${path})"
   }
+  case class PodId(path: PathId) {
+    override def toString(): String = s"PodId(${path})"
+  }
   case class DeploymentId(id: String)
-  type TaskId = Task.Id
+  type InstanceId = Instance.Id
 
   trait StringFormatter[T] extends (T => String) { def apply(v: T): String }
   object StringFormatter {
@@ -27,8 +34,9 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
       override def apply(v: T): String = fn(v)
     }
   }
-  implicit val TaskIdFormatter = StringFormatter[TaskId] { _.idString }
+  implicit val InstanceIdFormatter = StringFormatter[InstanceId] { _.idString }
   implicit val AppIdFormatter = StringFormatter[AppId] { _.path.toString }
+  implicit val PodIdFormatter = StringFormatter[PodId] { _.path.toString }
   implicit val DeploymentIdFormatter = StringFormatter[DeploymentId] { _.id }
   class QueryResult[T](val values: Seq[T])(implicit formatter: StringFormatter[T]) {
     def formattedValues: Seq[String] = values.map(formatter)
@@ -49,9 +57,11 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
   }
 
   implicit def stringToAppId(s: String): AppId = AppId(PathId(s))
+  implicit def stringToPodId(s: String): PodId = PodId(PathId(s))
   implicit def stringToPathId(s: String): PathId = PathId(s)
 
   implicit def appIdToPath(appId: AppId): PathId = appId.path
+  implicit def podIdToPath(podId: PodId): PathId = podId.path
 
   def listApps(containing: String = null, limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[AppId] = {
@@ -61,43 +71,63 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     // TODO - purge related deployments?
 
     QueryResult {
-      await(module.appRepository.allPathIds)
+      await(module.appRepository.ids)
         .filter { app =>
           predicates.forall { p => p(app) }
         }
-        .take(limit)
-        .toList
         .sorted
+        .take(limit)
         .map(AppId(_))
     }
   }
 
-  def listTasks(
+  def listPods(containing: String = null, limit: Int = Int.MaxValue)(
+    implicit module: StorageToolModule, timeout: Timeout): QueryResult[PodId] = {
+    val predicates = List(
+      Option(containing).map { c => { pathId: PathId => pathId.toString.contains(c) } }
+    ).flatten
+    // TODO - purge related deployments?
+
+    QueryResult {
+      await(module.podRepository.ids)
+        .filter { pod =>
+          predicates.forall { p => p(pod) }
+        }
+        .sorted
+        .take(limit)
+        .map(PodId(_))
+    }
+  }
+
+  def listInstances(
     forApp: AppId = null,
+    forPod: PodId = null,
     containing: String = null,
     limit: Int = Int.MaxValue)(
-    implicit module: StorageToolModule, timeout: Timeout): QueryResult[TaskId] = {
-    val predicates: List[(String => Boolean)] = List(
+    implicit module: StorageToolModule, timeout: Timeout): QueryResult[InstanceId] = {
+    val predicates: List[(InstanceId => Boolean)] = List(
       Option(containing).map { c =>
-        { taskId: String => taskId.contains(c) }
+        { instanceId: InstanceId => instanceId.toString.contains(c) }
       }
     ).flatten
 
-    val input = (Option(forApp)) match {
-      case Some(appId) =>
-        module.taskRepository.tasksKeys(appId.path)
-      case None =>
-        module.taskRepository.allIds()
+    val input = (Option(forApp), Option(forPod)) match {
+      case (None, Some(podId)) =>
+        module.instanceRepository.instances(podId.path)
+      case (Some(appId), None) =>
+        module.instanceRepository.instances(appId.path)
+      case (None, None) =>
+        module.instanceRepository.ids
+      case (Some(_), Some(_)) =>
+        throw new RuntimeException("cannot specify both podId and appId")
     }
     QueryResult {
       await(input)
-        .filter { taskId =>
-          predicates.forall { p => p(taskId) }
+        .filter { instanceId =>
+          predicates.forall { p => p(instanceId) }
         }
-        .take(limit)
-        .toList
         .sorted
-        .map(Task.Id(_))
+        .take(limit)
     }
   }
 
@@ -107,10 +137,9 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
       timeout: Timeout): QueryResult[DeploymentId] = {
 
     QueryResult {
-      await(module.deploymentRepository.allIds())
-        .take(limit)
-        .toList
+      await(module.deploymentRepository.ids)
         .sorted
+        .take(limit)
         .map(DeploymentId(_))
     }
   }
@@ -125,37 +154,52 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     val purgeDescription = "deployments"
     override def `purge!`(values: Seq[DeploymentId]): Unit = {
       values.foreach { v =>
-        module.deploymentRepository.expunge(v.id)
+        module.deploymentRepository.delete(v)
         println(s"Purged deployment: ${DeploymentIdFormatter(v)}")
       }
     }
   }
-  implicit def TaskPurgeStrategy(implicit module: StorageToolModule): PurgeStrategy[TaskId] = new PurgeStrategy[TaskId] {
-    val purgeDescription = "tasks"
-    override def `purge!`(values: Seq[TaskId]): Unit = {
+  implicit def InstancePurgeStrategy(implicit module: StorageToolModule): PurgeStrategy[InstanceId] = new PurgeStrategy[InstanceId] {
+    val purgeDescription = "instances"
+    override def `purge!`(values: Seq[InstanceId]): Unit = {
       values.foreach { v =>
-        module.taskRepository.expunge(v.idString)
-        println(s"Purged task: ${TaskIdFormatter(v)}")
+        module.instanceRepository.delete(v)
+        println(s"Purged instance: ${InstanceIdFormatter(v)}")
+      }
+    }
+  }
+
+  implicit def PodPurgeStrategy(implicit module: StorageToolModule): PurgeStrategy[PodId] = new PurgeStrategy[PodId] {
+    val purgeDescription = "pods and associated instances"
+    override def `purge!`(podIds: Seq[PodId]): Unit = {
+      // Remove from rootGroup
+      val rootGroup = await(module.groupRepository.root)
+      val newGroup = podIds.foldLeft(rootGroup) { (r, podId) => r.removePod(podId.path) }
+      module.groupRepository.storeRoot(newGroup, Nil, deletedPods = podIds.map(_.path), updatedPods = Nil, deletedApps = Nil)
+      println(s"Removed ${podIds.map(PodIdFormatter).toList} from root group")
+
+      podIds.foreach { podId =>
+        val instances = await(module.instanceRepository.instances(podId.path))
+        InstancePurgeStrategy.`purge!`(instances)
+        module.podRepository.delete(podId.path)
+        println(s"Purged pod ${podId}")
       }
     }
   }
 
   implicit def AppPurgeStrategy(implicit module: StorageToolModule): PurgeStrategy[AppId] = new PurgeStrategy[AppId] {
-    val purgeDescription = "apps and associated tasks"
+    val purgeDescription = "apps and associated instances"
     override def `purge!`(appIds: Seq[AppId]): Unit = {
       // Remove from rootGroup
-      val rootGroup = await(module.groupRepository.rootGroup).get
-      val now = Timestamp.now
-      val newGroup = appIds.foldLeft(rootGroup) { (r, appId) =>
-        r.update(appId.parent, { g => g.removeApplication(appId) }, now)
-      }
-      module.groupRepository.store(module.groupRepository.zkRootName, newGroup)
+      val rootGroup = await(module.groupRepository.root)
+      val newGroup = appIds.foldLeft(rootGroup) { (r, appId) => r.removeApp(appId.path) }
+      module.groupRepository.storeRoot(newGroup, Nil, deletedApps = appIds.map(_.path), updatedPods = Nil, deletedPods = Nil)
       println(s"Removed ${appIds.map(AppIdFormatter).toList} from root group")
 
       appIds.foreach { appId =>
-        val tasks = listTasks(forApp = AppId(appId)).values
-        TaskPurgeStrategy.`purge!`(tasks)
-        module.appRepository.expunge(appId.path)
+        val instances = await(module.instanceRepository.instances(appId.path))
+        InstancePurgeStrategy.`purge!`(instances)
+        module.appRepository.delete(appId.path)
         println(s"Purged app ${appId}")
       }
     }
@@ -218,27 +262,41 @@ Commands:
 
       listApps(containing = "store", limit = 5)
 
-  listTasks(forApp: PathId, containing: String, limit: Int)
+  listInstances(forApp: PathId, containing: String, limit: Int)
 
-    description: List tasks
+    description: List instances
     params:
-      containing : List all tasks containing the specified string in their id
-      limit      : Limit number of tasks returned
-      forApp     : List tasks pertaining to the specified appId
+      containing : List all instances containing the specified string in their id
+      limit      : Limit number of instances returned
+      forApp     : List instances pertaining to the specified appId
+      forPod     : List instances pertaining to the specified podId (you cannot
+                   specify both forApp and forPod)
 
     example:
 
-      listTasks(forApp = "/example", limit = 5)
+      listInstances(forApp = "/example", limit = 5)
 
   listDeployments(limit: Int)
 
     description: List deployments
     params:
-      limit      : Limit number of tasks returned
+      limit      : Limit number of instances returned
 
     example:
 
       listDeployments(forApp = "/example", limit = 5)
+
+  listPods(containing: String, limit: Int)
+
+    description: Return (sorted) list pods in repository
+
+    params:
+      containing : List all pods with the specified string in the podId
+      limit      : Limit number of pods returned
+
+    example:
+
+      listPods(containing = "store", limit = 5)
 
   purge(items: T)
 
@@ -246,8 +304,10 @@ Commands:
 
     example:
 
-      purge(listTasks(forApp = "/example"))
+      purge(listInstances(forApp = "/example"))
       purge(AppId("/example"))
+      purge(PodId("/example"))
+      purge(List(PodId("/example"), PodId("/example2")))
 
   help
 

@@ -2,11 +2,6 @@
 
 # General
 
-artifacts/marathon-1.3.%.tgz:
-	mkdir -p artifacts/
-	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v1.3.$*/marathon-1.3.$*.tgz
-	mv $@.tmp $@
-
 artifacts/marathon-1.4.%.tgz:
 	mkdir -p artifacts/
 	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v1.4.$*/marathon-1.4.$*.tgz
@@ -27,6 +22,11 @@ artifacts/marathon-1.5.%.tgz:
 	curl -f -o $@.tmp https://downloads.mesosphere.io/marathon/releases/1.5.$*/marathon-1.5.$*.tgz
 	mv $@.tmp $@
 
+artifacts/marathon-1.6.%.tgz:
+	mkdir -p artifacts/
+	curl -f -o $@.tmp https://downloads.mesosphere.io/marathon/builds/1.6.$*/marathon-1.6.$*.tgz
+	mv $@.tmp $@
+
 targets/%/lib:
 	mkdir -p $@
 
@@ -38,6 +38,32 @@ targets/%/docker-pushed: targets/%/docker-built
 	docker push mesosphere/marathon-storage-tool:$*
 	touch $@
 
+# 1.6.x
+targets/1.6.%/marathon: artifacts/marathon-1.6.%.tgz
+	mkdir -p targets/1.6.$*
+	mkdir -p tmp/marathon-1.6.$*/; cd tmp/marathon-1.6.$*; tar xzf ../../artifacts/marathon-1.6.$*.tgz
+	mv tmp/marathon-1.6.$*/marathon-1.6.* $@
+	rm -rf tmp/marathon-1.6.$*
+	touch $@
+
+define copy_16_lib_template
+targets/1.6.%/lib/$(1): targets/1.6.%/lib src/1.6.x/lib/$(1)
+	cp src/1.6.x/lib/$(1) $$@
+endef
+
+$(foreach file,$(foreach f,$(wildcard src/1.6.x/lib/*),$(notdir $f)),$(eval $(call copy_16_lib_template,$(file))))
+
+targets/1.6.%/bin/storage-tool.sh: targets/1.6.%/lib src/1.6.x/bin/storage-tool.sh
+	mkdir -p $(@D)
+	cp src/1.6.x/bin/storage-tool.sh $@
+
+targets/1.6.%/verified: targets/1.6.%/bin/storage-tool.sh targets/1.6.%/lib/bindings.sc targets/1.6.%/lib/load-jar.sc targets/1.6.%/lib/predef.sc targets/1.6.%/lib/dsl.sc targets/1.6.%/lib/helpers.sc  targets/1.6.%/marathon
+	cd targets/1.6.$*; amm-1.0.3-2.12 --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
+	touch $@
+
+targets/1.6.%/Dockerfile: src/1.6.x/Dockerfile
+	mkdir -p $(@D)
+	cp $< $@
 
 
 
