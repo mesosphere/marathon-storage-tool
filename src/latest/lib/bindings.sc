@@ -1,0 +1,111 @@
+#!/usr/bin/env amm-1.0.3-2.12
+
+import $file.helpers
+import scala.annotation.tailrec
+
+
+import akka.actor.{ ActorSystem, ActorRefFactory, Scheduler }
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Source, Sink}
+import akka.util.Timeout
+import com.codahale.metrics.MetricRegistry
+import mesosphere.marathon.PrePostDriverCallback
+import mesosphere.marathon.Protos.StorageVersion
+import mesosphere.marathon.core.base.LifecycleState
+import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.metrics.Metrics
+import mesosphere.marathon.state.PathId
+import mesosphere.marathon.storage._
+import mesosphere.marathon.storage.migration.{Migration, StorageVersions}
+import mesosphere.marathon.storage.repository._
+import org.apache.curator.framework.CuratorFramework
+import org.apache.curator.framework.recipes.leader.LeaderLatch
+import org.rogach.scallop.ScallopOption
+import scala.collection.immutable.Seq
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+import scala.concurrent.{Future, Await}
+
+case class StorageToolModule(
+  appRepository: AppRepository,
+  podRepository: PodRepository,
+  instanceRepository: InstanceRepository,
+  deploymentRepository: DeploymentRepository,
+  taskFailureRepository: TaskFailureRepository,
+  groupRepository: GroupRepository,
+  frameworkIdRepository: FrameworkIdRepository,
+  runtimeConfigurationRepository: RuntimeConfigurationRepository,
+  migration: Migration
+)
+
+class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) {
+  import helpers.Helpers._
+  implicit val actorSystem = ActorSystem()
+  implicit val actorMaterializer = ActorMaterializer()
+  implicit val scheduler: Scheduler = actorSystem.scheduler
+  implicit val timeout = Timeout(5.seconds)
+  /*private*/ class ScallopStub[A](name: String, value: Option[A]) extends ScallopOption[A](name) {
+    override def get = value
+    override def apply() = value.get
+  }
+
+  /*private*/ object ScallopStub {
+    def apply[A](value: Option[A]): ScallopStub[A] = new ScallopStub("", value)
+    def apply[A](name: String, value: Option[A]): ScallopStub[A] = new ScallopStub(name, value)
+  }
+
+  /*private*/ class MyStorageConf(args: List[String] = Nil, override val availableFeatures: Set[String] = Set.empty) extends org.rogach.scallop.ScallopConf(args) with StorageConf {
+    import org.rogach.scallop.exceptions._
+    override def onError(e: Throwable): Unit = e match {
+      case Help("") =>
+        builder.printHelp
+        sys.exit(0)
+      case e => println(e)
+    }
+
+    override lazy val storeCache = ScallopStub(Some(false))
+    override lazy val versionCacheEnabled = ScallopStub(Some(false))
+    override lazy val defaultNetworkName = ScallopStub(Some("temp"))
+  }
+
+  private val config = new MyStorageConf(args); config.verify
+  implicit lazy val storage = StorageConfig(config, LifecycleState.Ignore) match {
+    case zk: CuratorZk => zk
+  }
+  implicit lazy val client = storage.client
+  implicit lazy val underlyingModule = StorageModule(storage, "mesos-bridge-name")
+  lazy val store = {
+    val s = storage.store
+    // We need to call this method before using the storage module if it is defined
+    s.getClass.getMethods.find(_.getName == "markOpen").foreach { m =>
+      m.invoke(s)
+    }
+    s
+  }
+
+  implicit lazy val module = StorageToolModule(
+    appRepository = AppRepository.zkRepository(store),
+    podRepository = PodRepository.zkRepository(store),
+    instanceRepository = underlyingModule.instanceRepository,
+    deploymentRepository = underlyingModule.deploymentRepository,
+    taskFailureRepository = underlyingModule.taskFailureRepository,
+    groupRepository = underlyingModule.groupRepository,
+    frameworkIdRepository = underlyingModule.frameworkIdRepository,
+    runtimeConfigurationRepository = underlyingModule.runtimeConfigurationRepository,
+    migration = underlyingModule.migration)
+
+  def assertStoreCompat: Unit = {
+    def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}"
+    val storageVersion = await(store.storageVersion()).getOrElse {
+      sys.error(s"Could not determine current storage version!")
+    }
+    val currentVersion = StorageVersions(Migration.steps)
+    if ((storageVersion.getMajor == currentVersion.getMajor) &&
+      (storageVersion.getMinor == currentVersion.getMinor) &&
+      (storageVersion.getPatch == currentVersion.getPatch)) {
+      println(s"Storage version ${formattedVersion(storageVersion)} matches tool version ${currentVersion}.")
+    } else {
+      sys.error(s"Storage version ${formattedVersion(storageVersion)} does not match tool version! Current version: ${currentVersion}")
+    }
+  }
+}

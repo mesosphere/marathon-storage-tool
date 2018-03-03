@@ -1,0 +1,1 @@
+../../latest/bin/storage-tool.sh
