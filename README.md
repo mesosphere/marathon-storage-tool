@@ -24,13 +24,15 @@ Right now, only 1.3.x, 1.4.x, and 1.5.x versions of Marathon are supported. You 
 
 ### Strict Cluster
 
-Marathon-storage-tool works for a strict cluster as well, but requires the follow steps:
+Marathon-storage-tool works for a strict cluster as well, and can be run on a master node with the following commands:
 
 ```
 sudo -i
 source /run/dcos/etc/marathon/zk.env
 docker run --rm -it mesosphere/marathon-storage-tool:1.6.332-343e70457 --zk ${MARATHON_ZK}
 ```
+
+As usual, replace the storage tool version with the version of Marathon in use by the version of DC/OS running in your cluster.
 
 ## Building
 
