@@ -13,6 +13,7 @@ import mesosphere.marathon.PrePostDriverCallback
 import mesosphere.marathon.Protos.StorageVersion
 import mesosphere.marathon.core.base.LifecycleState
 import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.core.storage.store.impl.zk.ZkPersistenceStore
 import mesosphere.marathon.metrics.Metrics
 import mesosphere.marathon.state.PathId
 import mesosphere.marathon.storage._
@@ -75,7 +76,9 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   implicit lazy val client = storage.client
   implicit lazy val underlyingModule = StorageModule(storage, "mesos-bridge-name")
   lazy val store = {
-    val s = storage.store
+    val s: ZkPersistenceStore = underlyingModule.persistenceStore match {
+      case persistenceStore: ZkPersistenceStore => persistenceStore
+    }
     // We need to call this method before using the storage module if it is defined
     s.getClass.getMethods.find(_.getName == "markOpen").foreach { m =>
       m.invoke(s)
