@@ -1,3 +1,4 @@
+AMMONITE_212:=/usr/local/bin/amm-2.12-1.1.2
 .SECONDARY:
 
 # General
@@ -24,7 +25,7 @@ artifacts/marathon-1.5.%.tgz:
 
 artifacts/marathon-1.6.%.tgz:
 	mkdir -p artifacts/
-	curl -f -o $@.tmp https://downloads.mesosphere.io/marathon/builds/1.6.$*/marathon-1.6.$*.tgz
+	bash -x bin/download-marathon 1.6.$* $@.tmp
 	mv $@.tmp $@
 
 targets/%/lib:
@@ -58,7 +59,7 @@ targets/1.6.%/bin/storage-tool.sh: targets/1.6.%/lib src/1.6.x/bin/storage-tool.
 	cp src/1.6.x/bin/storage-tool.sh $@
 
 targets/1.6.%/verified: targets/1.6.%/bin/storage-tool.sh targets/1.6.%/lib/bindings.sc targets/1.6.%/lib/load-jar.sc targets/1.6.%/lib/predef.sc targets/1.6.%/lib/dsl.sc targets/1.6.%/lib/helpers.sc  targets/1.6.%/marathon
-	cd targets/1.6.$*; amm-1.0.3-2.12 --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
+	cd targets/1.6.$*; $(AMMONITE_212) --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
 	touch $@
 
 targets/1.6.%/Dockerfile: src/1.6.x/Dockerfile

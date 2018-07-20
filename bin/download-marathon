@@ -1,0 +1,25 @@
+#!/bin/bash
+
+VERSION="$1"
+OUTPUTFILE="$2"
+
+if [ -z "$VERSION" ] || [ -z "$OUTPUTFILE" ]; then
+  echo "Usage $0 [version] [download-as]"
+  exit 1
+fi
+
+case "$VERSION" in
+  1.6.*)
+    SHA="$(curl https://api.github.com/repos/mesosphere/marathon/commits/v$VERSION -H "Accept: application/vnd.github.VERSION.sha")"
+    URL="https://downloads.mesosphere.com/marathon/releases/$VERSION/marathon-${VERSION}-${SHA::9}.tgz"
+    curl -o "$OUTPUTFILE" "${URL}" -f
+    ;;
+  v*)
+    echo "Try again without the v prefix"
+    exit 1
+    ;;
+  *)
+    echo "I don't know how to download $VERSION. Please teach me."
+    ;;
+esac
+
