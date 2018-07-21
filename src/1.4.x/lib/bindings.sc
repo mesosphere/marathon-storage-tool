@@ -72,7 +72,7 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   }
   lazy val store = {
     val s: ZkPersistenceStore = underlyingModule.persistenceStore match {
-      case persistenceStore: ZkPersistenceStore => persistenceStore
+      case Some(persistenceStore: ZkPersistenceStore) => persistenceStore
     }
     // We need to call this method before using the storage module if it is defined
     s.getClass.getMethods.find(_.getName == "markOpen").foreach { m =>
