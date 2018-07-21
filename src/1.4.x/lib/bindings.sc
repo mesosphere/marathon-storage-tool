@@ -10,6 +10,7 @@ import akka.util.Timeout
 import com.codahale.metrics.MetricRegistry
 import mesosphere.marathon.Protos.StorageVersion
 import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.core.storage.store.impl.zk.ZkPersistenceStore
 import mesosphere.marathon.metrics.Metrics
 import mesosphere.marathon.state.PathId
 import mesosphere.marathon.storage._
@@ -70,7 +71,9 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
     case zk: CuratorZk => zk
   }
   lazy val store = {
-    val s = storage.store
+    val s: ZkPersistenceStore = underlyingModule.persistenceStore match {
+      case Some(persistenceStore: ZkPersistenceStore) => persistenceStore
+    }
     // We need to call this method before using the storage module if it is defined
     s.getClass.getMethods.find(_.getName == "markOpen").foreach { m =>
       m.invoke(s)
