@@ -6,4 +6,4 @@ for a in "$@"; do
 done
 
 export MARATHON_ARGS
-exec amm-1.0.3-2.12 --predef lib/predef.sc --predef-code "assertStoreCompat; help"
+exec amm-2.12 --predef lib/predef.sc --predef-code "assertStoreCompat; help"

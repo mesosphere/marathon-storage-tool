@@ -1,4 +1,4 @@
-AMMONITE_212:=/usr/local/bin/amm-2.12-1.1.2
+AMMONITE_212:=/usr/local/bin/amm-2.12
 .SECONDARY:
 
 # General

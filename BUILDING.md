@@ -8,7 +8,7 @@ Install Ammonite:
 
     curl -L https://github.com/lihaoyi/Ammonite/releases/download/1.1.2/2.12-1.1.2 > /usr/local/bin/amm-2.12-1.1.2
     chmod +x /usr/local/bin/amm-2.12-1.1.2
-
+    ln -sf /usr/local/bin/amm-2.12-1.1.2 /usr/local/bin/amm-2.12
 
 # Building
 
