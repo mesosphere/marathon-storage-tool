@@ -1,18 +1,29 @@
 #!/bin/bash
 
 VERSION="$1"
-OUTPUTFILE="$2"
+OUTPUT_FILE="$2"
 
-if [ -z "$VERSION" ] || [ -z "$OUTPUTFILE" ]; then
+if [ -z "$VERSION" ]; then
   echo "Usage $0 [version] [download-as]"
   exit 1
 fi
 
+if [ -z "$OUTPUT_FILE" ]; then
+  OUTPUT_ARGS="-O"
+else
+  OUTPUT_ARGS="$(printf "%s %q" "-o" "$OUTPUT_FILE")"
+fi
+
 case "$VERSION" in
+  1.7.*)
+    SHA="$(curl https://api.github.com/repos/mesosphere/marathon/commits/v$VERSION -H "Accept: application/vnd.github.VERSION.sha")"
+    URL="https://downloads.mesosphere.com/marathon/releases/$VERSION/marathon-${VERSION}-${SHA::9}.tgz"
+    curl $OUTPUT_ARGS "${URL}" -f
+    ;;
   1.6.*)
     SHA="$(curl https://api.github.com/repos/mesosphere/marathon/commits/v$VERSION -H "Accept: application/vnd.github.VERSION.sha")"
     URL="https://downloads.mesosphere.com/marathon/releases/$VERSION/marathon-${VERSION}-${SHA::9}.tgz"
-    curl -o "$OUTPUTFILE" "${URL}" -f
+    curl $OUTPUT_ARGS "${URL}" -f
     ;;
   v*)
     echo "Try again without the v prefix"
