@@ -33,6 +33,7 @@ targets/%/lib:
 
 targets/%/docker-built: targets/%/verified targets/%/Dockerfile
 	cd $(@D); docker build . -t mesosphere/marathon-storage-tool:$*
+	docker run --rm -it mesosphere/marathon-storage-tool:$* --help | grep "Show help message"
 	touch $@
 
 targets/%/docker-pushed: targets/%/docker-built
