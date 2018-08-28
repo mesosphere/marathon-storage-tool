@@ -69,6 +69,14 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
       case e => println(e)
     }
 
+    val migrate = toggle(
+      "migrate",
+      default = Some(false),
+      noshort = true,
+      descrYes = "Run migrations",
+      descrNo = "(Default) don't run migrations; fail if version compatibility fails."
+    )
+
     override lazy val storeCache = ScallopStub(Some(false))
     override lazy val versionCacheEnabled = ScallopStub(Some(false))
   }
@@ -78,15 +86,15 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   implicit lazy val storage = StorageConfig(config) match {
     case zk: CuratorZk => zk
   }
-  lazy val store = {
-    val s: ZkPersistenceStore = underlyingModule.persistenceStore match {
-      case Some(persistenceStore: ZkPersistenceStore) => persistenceStore
-    }
+  lazy val store: ZkPersistenceStore = underlyingModule.persistenceStore match {
+    case Some(persistenceStore: ZkPersistenceStore) => persistenceStore
+  }
+
+  def markStoreOpen(): Unit = {
     // We need to call this method before using the storage module if it is defined
-    s.getClass.getMethods.find(_.getName == "markOpen").foreach { m =>
-      m.invoke(s)
+    store.getClass.getMethods.find(_.getName == "markOpen").foreach { m =>
+      m.invoke(store)
     }
-    s
   }
 
   implicit lazy val client = storage.client
@@ -102,7 +110,7 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
     migration = underlyingModule.migration)
 
 
-  def assertStoreCompat: Unit = {
+  def assertStoreCompat(): Unit = {
     def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}"
     val storageVersion = await(store.storageVersion()).getOrElse {
       error(s"Could not determine current storage version!")
@@ -114,5 +122,16 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
     } else {
       error(s"Storage version ${formattedVersion(storageVersion)} does not match tool version!")
     }
+  }
+
+  def setup(): Unit = {
+    markStoreOpen()
+    if (config.migrate()) {
+      println("Running migrations")
+      module.migration.migrate()
+      println("Migrations complete")
+      System.exit(0)
+    }
+    assertStoreCompat()
   }
 }
