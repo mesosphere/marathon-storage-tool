@@ -1,10 +1,13 @@
 import $file.helpers
 import $file.bindings
 import scala.annotation.tailrec
+import $file.version
 
 import akka.util.Timeout
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.state.PathId
+import version.StorageToolVersion
+
 import akka.stream.Materializer
 import mesosphere.marathon.storage.repository.AppRepository
 import scala.collection.immutable.Seq
@@ -245,7 +248,7 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
 
   def help: Unit = {
     println(s"""
-Marathon State Surgey Tool
+Marathon Storage Tool (${StorageToolVersion})
 ==========================
 
 Commands:

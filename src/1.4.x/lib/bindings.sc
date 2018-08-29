@@ -1,13 +1,23 @@
 #!/usr/bin/env amm-2.11
 
 import $file.helpers
-import scala.annotation.tailrec
+import $file.version
+
+import version.StorageToolVersion
 
 import akka.actor.{ ActorSystem, ActorRefFactory, Scheduler }
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Source, Sink}
 import akka.util.Timeout
 import com.codahale.metrics.MetricRegistry
+import org.apache.curator.framework.CuratorFramework
+import org.apache.curator.framework.recipes.leader.LeaderLatch
+import org.rogach.scallop.ScallopOption
+import scala.annotation.tailrec
+import scala.collection.immutable.Seq
+import scala.concurrent.duration._
+import scala.concurrent.{Future, Await}
+
 import mesosphere.marathon.Protos.StorageVersion
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.storage.store.impl.zk.ZkPersistenceStore
@@ -16,12 +26,6 @@ import mesosphere.marathon.state.PathId
 import mesosphere.marathon.storage._
 import mesosphere.marathon.storage.migration.{StorageVersions, Migration}
 import mesosphere.marathon.storage.repository._
-import org.apache.curator.framework.CuratorFramework
-import org.apache.curator.framework.recipes.leader.LeaderLatch
-import org.rogach.scallop.ScallopOption
-import scala.collection.immutable.Seq
-import scala.concurrent.duration._
-import scala.concurrent.{Future, Await}
 
 case class StorageToolModule(
   appRepository: AppRepository,
@@ -53,7 +57,11 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   }
 
   private class MyStorageConf(args: List[String] = Nil, override val availableFeatures: Set[String] = Set.empty) extends org.rogach.scallop.ScallopConf(args) with StorageConf {
+    import StorageVersions.current
     import org.rogach.scallop.exceptions._
+
+    version(s"Marathon Storage Tool ${StorageToolVersion} for storage version ${current.getMajor}.${current.getMinor}.${current.getPatch}")
+
     override def onError(e: Throwable): Unit = e match {
       case Help("") =>
         builder.printHelp
