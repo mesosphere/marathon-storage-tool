@@ -1,6 +1,7 @@
 import $file.helpers
 import $file.bindings
 import scala.annotation.tailrec
+import $file.version
 
 import akka.stream.Materializer
 import akka.util.Timeout
@@ -18,6 +19,7 @@ import scala.collection.immutable.Seq
 import scala.io.StdIn
 
 import bindings._
+import version.StorageToolVersion
 
 class DSL(implicit val mat: Materializer, timeout: Timeout) {
   import helpers.Helpers._
@@ -264,7 +266,7 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
 
   def help: Unit = {
     println(s"""
-Marathon State Surgey Tool
+Marathon Storage Tool (${StorageToolVersion})
 ==========================
 
 Commands:
