@@ -59,7 +59,7 @@ targets/1.6.%/bin/storage-tool.sh: targets/1.6.%/lib src/1.6.x/bin/storage-tool.
 	mkdir -p $(@D)
 	cp src/1.6.x/bin/storage-tool.sh $@
 
-targets/1.6.%/verified: targets/1.6.%/bin/storage-tool.sh targets/1.6.%/lib/bindings.sc targets/1.6.%/lib/load-jar.sc targets/1.6.%/lib/predef.sc targets/1.6.%/lib/dsl.sc targets/1.6.%/lib/helpers.sc  targets/1.6.%/marathon
+targets/1.6.%/verified: targets/1.6.%/bin/storage-tool.sh targets/1.6.%/lib/version.sc targets/1.6.%/lib/bindings.sc targets/1.6.%/lib/load-jar.sc targets/1.6.%/lib/predef.sc targets/1.6.%/lib/dsl.sc targets/1.6.%/lib/helpers.sc  targets/1.6.%/marathon
 	cd targets/1.6.$*; $(AMMONITE_212) --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
 	touch $@
 
@@ -88,7 +88,7 @@ targets/1.5.%/bin/storage-tool.sh: targets/1.5.%/lib src/1.5.x/bin/storage-tool.
 	mkdir -p $(@D)
 	cp src/1.5.x/bin/storage-tool.sh $@
 
-targets/1.5.%/verified: targets/1.5.%/bin/storage-tool.sh targets/1.5.%/lib/bindings.sc targets/1.5.%/lib/load-jar.sc targets/1.5.%/lib/predef.sc targets/1.5.%/lib/dsl.sc targets/1.5.%/lib/helpers.sc  targets/1.5.%/marathon
+targets/1.5.%/verified: targets/1.5.%/bin/storage-tool.sh targets/1.5.%/lib/bindings.sc targets/1.5.%/lib/version.sc targets/1.5.%/lib/load-jar.sc targets/1.5.%/lib/predef.sc targets/1.5.%/lib/dsl.sc targets/1.5.%/lib/helpers.sc  targets/1.5.%/marathon
 	cd targets/1.5.$*; amm-2.11 --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
 	touch $@
 
@@ -116,7 +116,7 @@ targets/1.4.%/bin/storage-tool.sh: targets/1.4.%/lib src/1.4.x/bin/storage-tool.
 	mkdir -p $(@D)
 	cp src/1.4.x/bin/storage-tool.sh $@
 
-targets/1.4.%/verified: targets/1.4.%/bin/storage-tool.sh targets/1.4.%/lib/bindings.sc targets/1.4.%/lib/load-jar.sc targets/1.4.%/lib/predef.sc targets/1.4.%/lib/dsl.sc targets/1.4.%/lib/helpers.sc  targets/1.4.%/marathon.jar
+targets/1.4.%/verified: targets/1.4.%/bin/storage-tool.sh targets/1.4.%/lib/bindings.sc targets/1.4.%/lib/version.sc targets/1.4.%/lib/load-jar.sc targets/1.4.%/lib/predef.sc targets/1.4.%/lib/dsl.sc targets/1.4.%/lib/helpers.sc  targets/1.4.%/marathon.jar
 	cd targets/1.4.$*; amm-2.11 --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
 	touch $@
 
