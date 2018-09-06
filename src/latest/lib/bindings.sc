@@ -1,5 +1,3 @@
-#!/usr/bin/env amm-1.0.3-2.12
-
 import $file.helpers
 import $file.version
 
