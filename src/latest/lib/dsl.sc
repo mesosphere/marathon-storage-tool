@@ -70,6 +70,9 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
 
   def listApps(containing: String = null, limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[AppId] = {
+
+    module.assertStoreCompat
+
     val predicates = List(
       Option(containing).map { c => { pathId: PathId => pathId.toString.contains(c) } }
     ).flatten
@@ -88,6 +91,9 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
 
   def listPods(containing: String = null, limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[PodId] = {
+
+    module.assertStoreCompat
+
     val predicates = List(
       Option(containing).map { c => { pathId: PathId => pathId.toString.contains(c) } }
     ).flatten
@@ -110,6 +116,9 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     containing: String = null,
     limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[InstanceId] = {
+
+    module.assertStoreCompat
+
     val predicates: List[(InstanceId => Boolean)] = List(
       Option(containing).map { c =>
         { instanceId: InstanceId => instanceId.toString.contains(c) }
@@ -140,6 +149,8 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule,
       timeout: Timeout): QueryResult[DeploymentId] = {
+
+    module.assertStoreCompat
 
     QueryResult {
       await(module.deploymentRepository.ids)
@@ -223,7 +234,11 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     }
   }
 
-  def purge[T](values: Seq[T])(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
+  def purge[T](values: Seq[T])(
+    implicit module: StorageToolModule,purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
+
+    module.assertStoreCompat
+
     println()
     println(s"Are you sure you wish to purge the following ${purgeStrategy.purgeDescription}?")
     println()
@@ -237,11 +252,14 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
       println("Note: The leading Marathon will need to be restarted to see changes")
     }
   }
-  def purge[T](queryResult: QueryResult[T])(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
+
+  def purge[T](queryResult: QueryResult[T])(
+    implicit module: StorageToolModule, purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
     purge(queryResult.values)
   }
 
-  def purge[T](value: T)(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
+  def purge[T](value: T)(
+    implicit module: StorageToolModule, purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
     purge(Seq(value))
   }
 

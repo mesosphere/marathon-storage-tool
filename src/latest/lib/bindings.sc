@@ -23,6 +23,7 @@ import mesosphere.marathon.PrePostDriverCallback
 import mesosphere.marathon.Protos.StorageVersion
 import mesosphere.marathon.core.base.LifecycleState
 import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.core.storage.store.PersistenceStore
 import mesosphere.marathon.core.storage.store.impl.zk.ZkPersistenceStore
 import mesosphere.marathon.metrics.Metrics
 import mesosphere.marathon.state.PathId
@@ -31,6 +32,7 @@ import mesosphere.marathon.storage.migration.{Migration, StorageVersions}
 import mesosphere.marathon.storage.repository._
 
 case class StorageToolModule(
+  store: PersistenceStore[_, _, _],
   appRepository: AppRepository,
   podRepository: PodRepository,
   instanceRepository: InstanceRepository,
@@ -39,8 +41,23 @@ case class StorageToolModule(
   groupRepository: GroupRepository,
   frameworkIdRepository: FrameworkIdRepository,
   runtimeConfigurationRepository: RuntimeConfigurationRepository,
-  migration: Migration
-)
+  migration: Migration) {
+
+  def assertStoreCompat(implicit timeout: Timeout): Unit = {
+    import helpers.Helpers._
+
+    def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}-${v.getFormat}"
+    val storageVersion = await(store.storageVersion()).getOrElse {
+      sys.error(s"Could not determine current storage version!")
+    }
+    val currentVersion = StorageVersions(Migration.steps)
+    if (!((storageVersion.getMajor == currentVersion.getMajor) &&
+          (storageVersion.getMinor == currentVersion.getMinor) &&
+          (storageVersion.getPatch == currentVersion.getPatch))) {
+      sys.error(s"Storage version ${formattedVersion(storageVersion)} does not match tool version! Current version: ${currentVersion}")
+    }
+  }
+}
 
 class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) {
   import helpers.Helpers._
@@ -91,6 +108,7 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   }
 
   implicit lazy val module = StorageToolModule(
+    store = store,
     appRepository = AppRepository.zkRepository(store),
     podRepository = PodRepository.zkRepository(store),
     instanceRepository = underlyingModule.instanceRepository,
@@ -100,19 +118,4 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
     frameworkIdRepository = underlyingModule.frameworkIdRepository,
     runtimeConfigurationRepository = underlyingModule.runtimeConfigurationRepository,
     migration = underlyingModule.migration)
-
-  def assertStoreCompat: Unit = {
-    def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}"
-    val storageVersion = await(store.storageVersion()).getOrElse {
-      sys.error(s"Could not determine current storage version!")
-    }
-    val currentVersion = StorageVersions(Migration.steps)
-    if ((storageVersion.getMajor == currentVersion.getMajor) &&
-      (storageVersion.getMinor == currentVersion.getMinor) &&
-      (storageVersion.getPatch == currentVersion.getPatch)) {
-      println(s"Storage version ${formattedVersion(storageVersion)} matches tool version ${currentVersion}.")
-    } else {
-      sys.error(s"Storage version ${formattedVersion(storageVersion)} does not match tool version! Current version: ${currentVersion}")
-    }
-  }
 }
