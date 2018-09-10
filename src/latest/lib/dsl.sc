@@ -70,7 +70,6 @@ class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer
 
   def listApps(containing: String = null, limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[AppId] = {
-
     val predicates = List(
       Option(containing).map { c => { pathId: PathId => pathId.toString.contains(c) } }
     ).flatten
@@ -89,7 +88,6 @@ class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer
 
   def listPods(containing: String = null, limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[PodId] = {
-
     val predicates = List(
       Option(containing).map { c => { pathId: PathId => pathId.toString.contains(c) } }
     ).flatten
@@ -112,7 +110,6 @@ class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer
     containing: String = null,
     limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[InstanceId] = {
-
     val predicates: List[(InstanceId => Boolean)] = List(
       Option(containing).map { c =>
         { instanceId: InstanceId => instanceId.toString.contains(c) }
@@ -227,7 +224,6 @@ class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer
   }
 
   def purge[T](values: Seq[T])(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
-
     println()
     println(s"Are you sure you wish to purge the following ${purgeStrategy.purgeDescription}?")
     println()
