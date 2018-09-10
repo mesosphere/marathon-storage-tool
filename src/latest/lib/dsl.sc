@@ -21,7 +21,7 @@ import scala.io.StdIn
 import bindings._
 import version.StorageToolVersion
 
-class DSL(implicit val mat: Materializer, timeout: Timeout) {
+class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer, timeout: Timeout) {
   import helpers.Helpers._
 
   case class AppId(path: PathId) {
@@ -71,8 +71,6 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
   def listApps(containing: String = null, limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[AppId] = {
 
-    module.assertStoreCompat
-
     val predicates = List(
       Option(containing).map { c => { pathId: PathId => pathId.toString.contains(c) } }
     ).flatten
@@ -91,8 +89,6 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
 
   def listPods(containing: String = null, limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[PodId] = {
-
-    module.assertStoreCompat
 
     val predicates = List(
       Option(containing).map { c => { pathId: PathId => pathId.toString.contains(c) } }
@@ -116,8 +112,6 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     containing: String = null,
     limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule, timeout: Timeout): QueryResult[InstanceId] = {
-
-    module.assertStoreCompat
 
     val predicates: List[(InstanceId => Boolean)] = List(
       Option(containing).map { c =>
@@ -149,8 +143,6 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     limit: Int = Int.MaxValue)(
     implicit module: StorageToolModule,
       timeout: Timeout): QueryResult[DeploymentId] = {
-
-    module.assertStoreCompat
 
     QueryResult {
       await(module.deploymentRepository.ids)
@@ -234,10 +226,7 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     }
   }
 
-  def purge[T](values: Seq[T])(
-    implicit module: StorageToolModule,purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
-
-    module.assertStoreCompat
+  def purge[T](values: Seq[T])(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
 
     println()
     println(s"Are you sure you wish to purge the following ${purgeStrategy.purgeDescription}?")
@@ -253,17 +242,15 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     }
   }
 
-  def purge[T](queryResult: QueryResult[T])(
-    implicit module: StorageToolModule, purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
+  def purge[T](queryResult: QueryResult[T])(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
     purge(queryResult.values)
   }
 
-  def purge[T](value: T)(
-    implicit module: StorageToolModule, purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
+  def purge[T](value: T)(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
     purge(Seq(value))
   }
 
-  def migrate()(implicit module: StorageToolModule): Seq[String] = {
+  def migrate(): Seq[String] = {
     def versionToString(version: StorageVersion): String = {
       s"${version.getMajor}.${version.getMinor}.${version.getPatch}-${version.getFormat}"
     }
@@ -273,7 +260,7 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     println()
 
     confirm(System.currentTimeMillis.hashCode)(Seq.empty[String]) {
-      val result = module.migration.migrate().map(versionToString(_))
+      val result = unverifiedModule.migration.migrate().map(versionToString(_))
       println()
       println("Done")
       println()
