@@ -1,5 +1,3 @@
-#!/usr/bin/env amm-1.0.3-2.12
-
 import $file.helpers
 import $file.version
 
@@ -90,7 +88,7 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
     s
   }
 
-  implicit lazy val module = StorageToolModule(
+  private lazy val initialModule = StorageToolModule(
     appRepository = AppRepository.zkRepository(store),
     podRepository = PodRepository.zkRepository(store),
     instanceRepository = underlyingModule.instanceRepository,
@@ -101,18 +99,30 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
     runtimeConfigurationRepository = underlyingModule.runtimeConfigurationRepository,
     migration = underlyingModule.migration)
 
-  def assertStoreCompat: Unit = {
-    def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}"
+  implicit lazy val module = {
+    assertStoreCompat(fail = true)
+    initialModule
+  }
+
+  def unverifiedModule = {
+    assertStoreCompat(fail = false)
+    initialModule
+  }
+
+  def assertStoreCompat(fail: Boolean): Unit = {
+    def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}-${v.getFormat}"
     val storageVersion = await(store.storageVersion()).getOrElse {
       sys.error(s"Could not determine current storage version!")
     }
     val currentVersion = StorageVersions(Migration.steps)
     if ((storageVersion.getMajor == currentVersion.getMajor) &&
-      (storageVersion.getMinor == currentVersion.getMinor) &&
-      (storageVersion.getPatch == currentVersion.getPatch)) {
+        (storageVersion.getMinor == currentVersion.getMinor) &&
+        (storageVersion.getPatch == currentVersion.getPatch)) {
       println(s"Storage version ${formattedVersion(storageVersion)} matches tool version ${currentVersion}.")
     } else {
-      sys.error(s"Storage version ${formattedVersion(storageVersion)} does not match tool version! Current version: ${currentVersion}")
+      val message = s"Storage version ${formattedVersion(storageVersion)} does not match tool version! Current version: ${currentVersion}"
+      if (fail) sys.error(message)
+      else println(message)
     }
   }
 }

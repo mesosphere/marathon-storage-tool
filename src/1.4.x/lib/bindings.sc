@@ -91,7 +91,8 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
 
   implicit lazy val client = storage.client
   implicit lazy val underlyingModule = StorageModule(storage, None)
-  implicit lazy val module = StorageToolModule(
+
+  private lazy val initialModule = StorageToolModule(
     appRepository = AppRepository.zkRepository(store),
     podRepository = PodRepository.zkRepository(store),
     instanceRepository = underlyingModule.instanceRepository,
@@ -101,18 +102,29 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
     frameworkIdRepository = underlyingModule.frameworkIdRepository,
     migration = underlyingModule.migration)
 
+  implicit lazy val module = {
+    assertStoreCompat(fail = true)
+    initialModule
+  }
 
-  def assertStoreCompat: Unit = {
-    def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}"
+  def unverifiedModule = {
+    assertStoreCompat(fail = false)
+    initialModule
+  }
+
+  def assertStoreCompat(fail: Boolean): Unit = {
+    def formattedVersion(v: StorageVersion): String = s"${v.getMajor}.${v.getMinor}.${v.getPatch}-${v.getFormat}"
     val storageVersion = await(store.storageVersion()).getOrElse {
       error(s"Could not determine current storage version!")
     }
     if ((storageVersion.getMajor == StorageVersions.current.getMajor) &&
-      (storageVersion.getMinor == StorageVersions.current.getMinor) &&
-      (storageVersion.getPatch == StorageVersions.current.getPatch)) {
+        (storageVersion.getMinor == StorageVersions.current.getMinor) &&
+        (storageVersion.getPatch == StorageVersions.current.getPatch)) {
       println(s"Storage version ${formattedVersion(storageVersion)} matches tool version.")
     } else {
-      error(s"Storage version ${formattedVersion(storageVersion)} does not match tool version!")
+      val message = s"Storage version ${formattedVersion(storageVersion)} does not match tool version!"
+      if (fail) sys.error(message)
+      else println(message)
     }
   }
 }

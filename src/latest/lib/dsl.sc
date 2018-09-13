@@ -3,23 +3,25 @@ import $file.bindings
 import scala.annotation.tailrec
 import $file.version
 
+import akka.stream.Materializer
 import akka.util.Timeout
+
+import mesosphere.marathon.PrePostDriverCallback
+import mesosphere.marathon.Protos.StorageVersion
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.state.PathId
-import version.StorageToolVersion
-
-import akka.stream.Materializer
-import mesosphere.marathon.storage.repository.AppRepository
-import scala.collection.immutable.Seq
-import scala.concurrent.duration._
-import scala.concurrent.{Future, Await}
-
 import mesosphere.marathon.storage.migration.Migration
 import mesosphere.marathon.storage.repository._
-import mesosphere.marathon.PrePostDriverCallback
-import bindings._
 
-class DSL(implicit val mat: Materializer, timeout: Timeout) {
+import scala.concurrent.{Future, Await}
+import scala.concurrent.duration._
+import scala.collection.immutable.Seq
+import scala.io.StdIn
+
+import bindings._
+import version.StorageToolVersion
+
+class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer, timeout: Timeout) {
   import helpers.Helpers._
 
   case class AppId(path: PathId) {
@@ -208,19 +210,17 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     }
   }
 
-  val NoPendingAction: Int => Unit = { _ => println(s"No pending action for confirmation") }
-  var confirm: Int => Unit = NoPendingAction
+  def confirm[T](id: Int)(default: T)(fn: => T): T = {
+    print(s"To confirm the operation, please type $id: ")
+    val confirmedId = StdIn.readInt()
 
-  def setConfirmation(id: Int)(fn: => Unit): Unit = {
-    confirm = { confirmId =>
-      if (id!=confirmId)
-        println(s"Confirmation ID did not match")
-      else {
-        confirm = NoPendingAction
-        fn
-      }
+    if (id != confirmedId) {
+      println(s"The operation has not been confirmed!")
+      default
     }
-    println(s"To confirm, type:\n\n  confirm(${id})")
+    else {
+      fn
+    }
   }
 
   def purge[T](values: Seq[T])(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
@@ -230,20 +230,39 @@ class DSL(implicit val mat: Materializer, timeout: Timeout) {
     val formattedValues = values.map(formatter)
     formattedValues.foreach { v => println(s"  ${v}") }
     println()
-    setConfirmation(formattedValues.hashCode) {
-      purgeStrategy.`purge!`(values)
+    confirm(formattedValues.hashCode)(()) {
       println()
       println("Done")
       println()
       println("Note: The leading Marathon will need to be restarted to see changes")
     }
   }
+
   def purge[T](queryResult: QueryResult[T])(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
     purge(queryResult.values)
   }
 
   def purge[T](value: T)(implicit purgeStrategy: PurgeStrategy[T], formatter: StringFormatter[T]): Unit = {
     purge(Seq(value))
+  }
+
+  def migrate(): Seq[String] = {
+    def versionToString(version: StorageVersion): String = {
+      s"${version.getMajor}.${version.getMinor}.${version.getPatch}-${version.getFormat}"
+    }
+
+    println()
+    println("Are you sure you wish to perform the data migration? Before proceeding please make sure there are no running Marathon instances")
+    println()
+
+    confirm(System.currentTimeMillis.hashCode)(Seq.empty[String]) {
+      val result = unverifiedModule.migration.migrate().map(versionToString(_))
+      println()
+      println("Done")
+      println()
+      println("Note: Now you may start your Marathon instances back")
+      result
+    }
   }
 
   def help: Unit = {
@@ -311,6 +330,14 @@ Commands:
       purge(AppId("/example"))
       purge(PodId("/example"))
       purge(List(PodId("/example"), PodId("/example2")))
+
+  migrate()
+
+    description: Perform ZK data migration to the current version, if necessary
+
+    example:
+
+      listApps()
 
   help
 
