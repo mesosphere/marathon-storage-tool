@@ -231,6 +231,7 @@ class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer
     formattedValues.foreach { v => println(s"  ${v}") }
     println()
     confirm(formattedValues.hashCode)(()) {
+      purgeStrategy.`purge!`(values)
       println()
       println("Done")
       println()
