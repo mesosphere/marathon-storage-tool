@@ -1,4 +1,4 @@
-FROM mesosphere/openjdk-alpine-ammonite:1.1.2-2.12
+FROM mesosphere/openjdk-alpine-ammonite:1.6.6-2.12
 
 COPY lib/ /lib/
 COPY bin/ /bin/
