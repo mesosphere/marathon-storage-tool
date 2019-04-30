@@ -1,1 +1,0 @@
-../../latest/lib/version.sc
