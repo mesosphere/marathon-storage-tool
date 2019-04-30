@@ -19,7 +19,7 @@ import scala.concurrent.{Future, Await}
 
 import mesosphere.marathon.PrePostDriverCallback
 import mesosphere.marathon.Protos.StorageVersion
-import mesosphere.marathon.core.base.LifecycleState
+import mesosphere.marathon.core.base.{JvmExitsCrashStrategy, LifecycleState}
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.storage.store.impl.zk.ZkPersistenceStore
 import mesosphere.marathon.metrics.Metrics
@@ -75,7 +75,7 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   }
 
   private val config = new MyStorageConf(args); config.verify
-  implicit lazy val storage = StorageConfig(config, LifecycleState.Ignore) match {
+  implicit lazy val storage = StorageConfig(config, LifecycleState.Ignore, JvmExitsCrashStrategy) match {
     case zk: CuratorZk => zk
   }
   implicit lazy val client = storage.client
