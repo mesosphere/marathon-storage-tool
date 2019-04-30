@@ -19,10 +19,10 @@ import scala.concurrent.{Future, Await}
 
 import mesosphere.marathon.PrePostDriverCallback
 import mesosphere.marathon.Protos.StorageVersion
-import mesosphere.marathon.core.base.LifecycleState
+import mesosphere.marathon.core.base.{JvmExitsCrashStrategy, LifecycleState}
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.storage.store.impl.zk.ZkPersistenceStore
-import mesosphere.marathon.metrics.Metrics
+import mesosphere.marathon.metrics.dummy.DummyMetrics
 import mesosphere.marathon.state.PathId
 import mesosphere.marathon.storage._
 import mesosphere.marathon.storage.migration.{Migration, StorageVersions}
@@ -75,11 +75,12 @@ class MarathonStorage(args: List[String] = helpers.InternalHelpers.argsFromEnv) 
   }
 
   private val config = new MyStorageConf(args); config.verify
-  implicit lazy val storage = StorageConfig(config, LifecycleState.Ignore) match {
+  lazy val curatorFramework = StorageConfig.curatorFramework(config, JvmExitsCrashStrategy, LifecycleState.Ignore)
+  implicit lazy val storage = StorageConfig(config, curatorFramework) match {
     case zk: CuratorZk => zk
   }
   implicit lazy val client = storage.client
-  implicit lazy val underlyingModule = StorageModule(storage, "mesos-bridge-name")
+  implicit lazy val underlyingModule = StorageModule(DummyMetrics, storage, "mesos-bridge-name")
   lazy val store = {
     val s: ZkPersistenceStore = underlyingModule.persistenceStore match {
       case persistenceStore: ZkPersistenceStore => persistenceStore

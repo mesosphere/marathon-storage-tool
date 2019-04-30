@@ -1,1 +1,1 @@
-val StorageToolVersion = "0.1.0"
+../../latest/lib/version.sc
