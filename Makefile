@@ -3,10 +3,6 @@ AMMONITE_212:=/usr/local/bin/amm-2.12
 
 # General
 
-artifacts/marathon-1.4.%.tgz:
-	mkdir -p artifacts/
-	curl -f -o $@.tmp https://downloads.mesosphere.com/marathon/v1.4.$*/marathon-1.4.$*.tgz
-	mv $@.tmp $@
 
 artifacts/marathon-1.5.0.tgz:
 	mkdir -p artifacts/
@@ -28,6 +24,11 @@ artifacts/marathon-1.6.%.tgz:
 	bash -x bin/download-marathon 1.6.$* $@.tmp
 	mv $@.tmp $@
 
+artifacts/marathon-1.7.%.tgz:
+	mkdir -p artifacts/
+	bash -x bin/download-marathon 1.7.$* $@.tmp
+	mv $@.tmp $@
+
 targets/%/lib:
 	mkdir -p $@
 
@@ -39,6 +40,34 @@ targets/%/docker-built: targets/%/verified targets/%/Dockerfile
 targets/%/docker-pushed: targets/%/docker-built
 	docker push mesosphere/marathon-storage-tool:$*
 	touch $@
+
+# 1.7.x
+targets/1.7.%/marathon: artifacts/marathon-1.7.%.tgz
+	mkdir -p targets/1.7.$*
+	mkdir -p tmp/marathon-1.7.$*/; cd tmp/marathon-1.7.$*; tar xzf ../../artifacts/marathon-1.7.$*.tgz
+	mv tmp/marathon-1.7.$*/marathon-1.7.* $@
+	rm -rf tmp/marathon-1.7.$*
+	touch $@
+
+define copy_17_lib_template
+targets/1.7.%/lib/$(1): targets/1.7.%/lib src/1.7.x/lib/$(1)
+	cp src/1.7.x/lib/$(1) $$@
+endef
+
+$(foreach file,$(foreach f,$(wildcard src/1.7.x/lib/*),$(notdir $f)),$(eval $(call copy_17_lib_template,$(file))))
+
+targets/1.7.%/bin/storage-tool.sh: targets/1.7.%/lib src/1.7.x/bin/storage-tool.sh
+	mkdir -p $(@D)
+	cp src/1.7.x/bin/storage-tool.sh $@
+
+targets/1.7.%/verified: targets/1.7.%/bin/storage-tool.sh targets/1.7.%/lib/version.sc targets/1.7.%/lib/bindings.sc targets/1.7.%/lib/load-jar.sc targets/1.7.%/lib/predef.sc targets/1.7.%/lib/dsl.sc targets/1.7.%/lib/helpers.sc  targets/1.7.%/marathon
+	cd targets/1.7.$*; $(AMMONITE_212) --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
+	touch $@
+
+targets/1.7.%/Dockerfile: src/1.7.x/Dockerfile
+	mkdir -p $(@D)
+	cp $< $@
+
 
 # 1.6.x
 targets/1.6.%/marathon: artifacts/marathon-1.6.%.tgz
@@ -93,33 +122,5 @@ targets/1.5.%/verified: targets/1.5.%/bin/storage-tool.sh targets/1.5.%/lib/bind
 	touch $@
 
 targets/1.5.%/Dockerfile: src/1.5.x/Dockerfile
-	mkdir -p $(@D)
-	cp $< $@
-
-
-# 1.4.x
-targets/1.4.%/marathon.jar: artifacts/marathon-1.4.%.tgz
-	mkdir -p targets/1.4.$*
-	mkdir -p tmp/marathon-1.4.$*/; cd tmp/marathon-1.4.$*; tar xzf ../../artifacts/marathon-1.4.$*.tgz
-	find tmp/marathon-1.4.$*/ -name "marathon-*.jar" -exec mv {} $@ \;
-	rm -rf tmp/marathon-1.4.$*
-	[ -f $@ ] && touch $@
-
-define copy_14_lib_template
-targets/1.4.%/lib/$(1): targets/1.4.%/lib src/1.4.x/lib/$(1)
-	cp src/1.4.x/lib/$(1) $$@
-endef
-
-$(foreach file,$(foreach f,$(wildcard src/1.4.x/lib/*),$(notdir $f)),$(eval $(call copy_14_lib_template,$(file))))
-
-targets/1.4.%/bin/storage-tool.sh: targets/1.4.%/lib src/1.4.x/bin/storage-tool.sh
-	mkdir -p $(@D)
-	cp src/1.4.x/bin/storage-tool.sh $@
-
-targets/1.4.%/verified: targets/1.4.%/bin/storage-tool.sh targets/1.4.%/lib/bindings.sc targets/1.4.%/lib/version.sc targets/1.4.%/lib/load-jar.sc targets/1.4.%/lib/predef.sc targets/1.4.%/lib/dsl.sc targets/1.4.%/lib/helpers.sc  targets/1.4.%/marathon.jar
-	cd targets/1.4.$*; amm-2.11 --predef lib/predef.sc --predef-code 'println("it worked"); sys.exit(0)' | grep "it worked"
-	touch $@
-
-targets/1.4.%/Dockerfile: src/1.4.x/Dockerfile
 	mkdir -p $(@D)
 	cp $< $@

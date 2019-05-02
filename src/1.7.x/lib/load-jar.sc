@@ -1,0 +1,1 @@
+../../latest/lib/load-jar.sc
