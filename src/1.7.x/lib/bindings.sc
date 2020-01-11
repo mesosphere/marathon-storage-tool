@@ -1,1 +1,1 @@
-../../latest/lib/bindings.sc
+../../1.8.x/lib/bindings.sc
