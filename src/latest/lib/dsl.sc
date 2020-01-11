@@ -32,6 +32,7 @@ class DSL(unverifiedModule: => StorageToolModule)(implicit val mat: Materializer
   }
   case class DeploymentId(id: String)
   type InstanceId = Instance.Id
+  def InstanceId(id: String) = Instance.Id.fromIdString(id)
 
   trait StringFormatter[T] extends (T => String) { def apply(v: T): String }
   object StringFormatter {
@@ -330,6 +331,7 @@ Commands:
       purge(listInstances(forApp = "/example"))
       purge(AppId("/example"))
       purge(PodId("/example"))
+      purge(InstanceId("hellootest.marathon-6f4c3d08-32e8-11ea-bd6b-b64cddbca657"))
       purge(List(PodId("/example"), PodId("/example2")))
 
   migrate()
